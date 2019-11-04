@@ -4,7 +4,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from sklearn import preprocessing
 import os
-123
+
 
 def dtw_distance(ts_a, ts_b, d=lambda x, y: abs(x - y)):
     M, N = len(ts_a), len(ts_b)
