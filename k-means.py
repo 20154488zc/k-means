@@ -6,26 +6,6 @@ from sklearn import preprocessing
 import os
 
 
-def dtw_distance(ts_a, ts_b, d=lambda x, y: abs(x - y)):
-    M, N = len(ts_a), len(ts_b)
-    cost_sum = 0
-    for dim in range(4):
-        cost = np.zeros((M, N))
-        cost[0, 0] = d(ts_a[0][dim], ts_b[0][dim])
-        for i in range(1, M):
-            cost[i, 0] = cost[i - 1, 0] + d(ts_a[i][dim], ts_b[0][dim])
-
-        for j in range(1, N):
-            cost[0, j] = cost[0, j - 1] + d(ts_a[0][dim], ts_b[j][dim])
-
-        for i in range(1, M):
-            for j in range(1, N):
-                choices = cost[i - 1, j - 1], cost[i, j - 1], cost[i - 1, j]
-                cost[i, j] = min(choices) + d(ts_a[i][dim], ts_b[j][dim])
-        cost_sum += cost[-1,-1]
-    return cost_sum
-
-
 def dtw_distance_new(ts_a, ts_b, d=lambda x, y: abs(x - y)):
     M, N = len(ts_a), len(ts_b)
     cost_sum = []
@@ -43,8 +23,8 @@ def dtw_distance_new(ts_a, ts_b, d=lambda x, y: abs(x - y)):
                 choices = cost[i - 1, j - 1], cost[i, j - 1], cost[i - 1, j]
                 cost[i, j] = min(choices) + d(ts_a[i][dim], ts_b[j][dim])
         cost_sum.append(cost[-1, -1])
-    # cost_average = (cost_sum[0] + cost_sum[1] + cost_sum[2] + cost_sum[3])/4
-    cost_average = (cost_sum[0] + cost_sum[1])/2
+    cost_average = (cost_sum[0] + cost_sum[1] + cost_sum[2] + cost_sum[3])/4
+    # cost_average = (cost_sum[0] + cost_sum[1])
     # cost_average = (cost_sum[2] + cost_sum[3])/2
     return cost_average
 
@@ -74,7 +54,7 @@ def average_points(list_of_series):
         for j in range(len(list_of_series[0])):
             total = 0
             for i in range(len(list_of_series)):
-                total +=list_of_series[i][j][dim]
+                total += list_of_series[i][j][dim]
             aver[j][dim] = (total/len(list_of_series))
     return aver
 
@@ -109,7 +89,7 @@ def k_means(points, K):
             min_dist = float('inf')
             min_mean = new_means[0]
             for mean in range(K):
-                dist = dtw_distance(points[point], new_means[mean])
+                dist = dtw_distance_new(points[point], new_means[mean])
                 if dist < min_dist:
                     min_dist = dist
                     min_mean = mean
@@ -118,26 +98,14 @@ def k_means(points, K):
         old_means = new_means.copy()
         new_means.clear()
         for key in range(K):
-            # print(np.array(mean_points[key]).shape)
             new_means.append(average_points(mean_points[key]))
         if((np.array(new_means) == np.array(old_means)).all() or count == 100):
             above_distance = False
         print(count)
         count += 1
-    # index = 0
-    # for i in range(K):
-    #     for j in range(len(mean_points[i])):
-    #         if np.array(mean_points[i][j]).all() == np.array(data[0]).all():
-    #             print(1, mean_points[i][j])
-    #             print(2, data[0])
-    #             index = i
-    #             break
-    #     if index:
-    #         break
-    # for i in range(K):
-    #     temp = mean_points[i]
-    #     mean_points[i] = mean_points[index]
-    #     mean_points[index] = temp
+    means_figure(np.array(new_means), K)
+    new_figure(label_pred, K)
+    means_dtw(np.array(new_means), label_pred, K)
     return new_means, label_pred
 
 
@@ -213,7 +181,7 @@ def dtw_figure():
         plt.close()
 
 
-def new_figure(label_pred):
+def new_figure(label_pred, K):
     x = np.arange(0, 37)
     for i in range(len(data)):
         plt.figure(figsize=(10, 5), dpi=120)
@@ -226,7 +194,7 @@ def new_figure(label_pred):
         title = 'NO.'+str(i) + '     label:' + str(label[i])
         plt.title(title)
         plt.grid()
-        path = 'new_figure/' + str(int(label_pred[i]))
+        path = 'new_figure/' + str(K) + '_means/' + str(int(label_pred[i]))
         if not os.path.exists(path):
             os.makedirs(path)
         path = path + '/' + str(i) + '.png'
@@ -234,7 +202,7 @@ def new_figure(label_pred):
         plt.close()
 
 
-def means_figure(means):
+def means_figure(means, K):
     means0 = np.zeros((len(means), len(means[0])))
     for i in range(len(means)):
         for j in range(len(means[i])):
@@ -252,6 +220,9 @@ def means_figure(means):
         for j in range(len(means[i])):
             means3[i][j] = means[i][j][3]
     x = np.arange(0, 37)
+    path = 'means/' + str(K)
+    if not os.path.exists(path):
+        os.makedirs(path)
     for i in range(len(means)):
         plt.figure(figsize=(10, 5), dpi=120)
         plt.plot(x, means0[i], color='blue', linewidth=1.5)
@@ -261,25 +232,40 @@ def means_figure(means):
         plt.xlim(0, 38)
         plt.ylim(0, 1)
         plt.grid()
-        path = 'means/' + str(i) + '.png'
+        path = 'means/' + str(K) + '/' + str(i) + '.png'
         plt.savefig(path)
         plt.close()
 
 
-means, label_pred = k_means(data, 4)
+def means_dtw(means, label_pred, K):
+    x = np.arange(0, len(data))
+    for mean in range(len(means)):
+        dtw = []
+        for num in range(len(data)):
+            if label_pred[num] == mean:
+                dtw.append(dtw_distance_new(means[mean], data[num]))
+        first_num = len(dtw)
+        for num in range(len(data)):
+            if label_pred[num] != mean:
+                dtw.append(dtw_distance_new(means[mean], data[num]))
+        plt.figure(figsize=(20, 5))
+        plt.bar(x, dtw, align='center')
+        title = 'first ' + str(first_num) + ' are in mean ' + str(mean)
+        plt.title(title)
+        path = 'means/' + str(K) + '/means_' + str(mean) + '.png'
+        plt.savefig(path)
+        plt.close()
+
+
+# data = np.load('dataset_all.npy')
+K = 4
+for K in range(8,10):
+    means, label_pred = k_means(data, K)
 # new_figure(label_pred)
 # plt.figure(figsize=(20, 5))
 # x = np.arange(0, len(label_pred))
 # plt.bar(x, label_pred, align='center')
 # plt.show()
-means_figure(np.array(means))
-
-# i = 100
-# DTW = np.zeros((len(data),len(data)))
-# # for i in range(len(data)):
-# for j in range(0, len(data)):
-#     DTW[i][j] = dtw_distance_1dim(data[i], data[j])
-#     print(label[j], DTW[i][j])
 
 
 # figure()
